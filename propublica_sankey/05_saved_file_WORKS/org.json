@@ -1,0 +1,167 @@
+{
+  "organization": {
+    "ein": 530206027,
+    "name": "Smithsonian Institute",
+    "city": "Washington",
+    "state": "DC"
+  },
+  "filings_with_data": [
+    {
+      "tax_prd_yr": 2023,
+      "tax_prd": 202309,
+      "formtype": 0,
+      "totrevenue": 1876542577,
+      "totfuncexpns": 1601797046,
+      "totnetassetend": 5689746978,
+      "totcntrbgfts": 1639379712,
+      "totprgmrevnue": 110685734,
+      "invstmntinc": 24167850,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2022,
+      "tax_prd": 202209,
+      "formtype": 0,
+      "totrevenue": 1855983046,
+      "totfuncexpns": 1487646437,
+      "totnetassetend": 5410170954,
+      "totcntrbgfts": 1440330179,
+      "totprgmrevnue": 92495451,
+      "invstmntinc": 15867060,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2021,
+      "tax_prd": 202109,
+      "formtype": 0,
+      "totrevenue": 1804763983,
+      "totfuncexpns": 1416120138,
+      "totnetassetend": 5495963159,
+      "totcntrbgfts": 1527783787,
+      "totprgmrevnue": 72854595,
+      "invstmntinc": 11187982,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2020,
+      "tax_prd": 202009,
+      "formtype": 0,
+      "totrevenue": 1561599985,
+      "totfuncexpns": 1394014893,
+      "totnetassetend": 4636979503,
+      "totcntrbgfts": 1308610079,
+      "totprgmrevnue": 70900273,
+      "invstmntinc": 12136585,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2019,
+      "tax_prd": 201909,
+      "formtype": 0,
+      "totrevenue": 1601124226,
+      "totfuncexpns": 1418028412,
+      "totnetassetend": 4334282185,
+      "totcntrbgfts": 1292933360,
+      "totprgmrevnue": 102158984,
+      "invstmntinc": 21914843,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2018,
+      "tax_prd": 201809,
+      "formtype": 0,
+      "totrevenue": 1466053226,
+      "totfuncexpns": 1390817397,
+      "totnetassetend": 4161042055,
+      "totcntrbgfts": 1192108664,
+      "totprgmrevnue": 108484309,
+      "invstmntinc": 23932124,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2017,
+      "tax_prd": 201709,
+      "formtype": 0,
+      "totrevenue": 1456826975,
+      "totfuncexpns": 1374738856,
+      "totnetassetend": 3983926070,
+      "totcntrbgfts": 1174946626,
+      "totprgmrevnue": 115337291,
+      "invstmntinc": 19051168,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2016,
+      "tax_prd": 201609,
+      "formtype": 0,
+      "totrevenue": 1449630382,
+      "totfuncexpns": 1307694171,
+      "totnetassetend": 3830939636,
+      "totcntrbgfts": 1221449061,
+      "totprgmrevnue": 109747404,
+      "invstmntinc": 13983057,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2015,
+      "tax_prd": 201509,
+      "formtype": 0,
+      "totrevenue": 1354737828,
+      "totfuncexpns": 1220524063,
+      "totnetassetend": 3638578392,
+      "totcntrbgfts": 1097910208,
+      "totprgmrevnue": 107979707,
+      "invstmntinc": 12282446,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2014,
+      "tax_prd": 201409,
+      "formtype": 0,
+      "totrevenue": 1452410465,
+      "totfuncexpns": 1173081322,
+      "totnetassetend": 3588103640,
+      "totcntrbgfts": 1190256002,
+      "totprgmrevnue": 100635585,
+      "invstmntinc": 22472173,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2013,
+      "tax_prd": 201309,
+      "formtype": 0,
+      "totrevenue": 1371587031,
+      "totfuncexpns": 1162329865,
+      "totnetassetend": 3241242621,
+      "totcntrbgfts": 1120530769,
+      "totprgmrevnue": 97940513,
+      "invstmntinc": 9504224,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2012,
+      "tax_prd": 201209,
+      "formtype": 0,
+      "totrevenue": 1315239542,
+      "totfuncexpns": 1146692789,
+      "totnetassetend": 3039118608,
+      "totcntrbgfts": 1126869412,
+      "totprgmrevnue": 90218174,
+      "invstmntinc": 7386593,
+      "ein": 530206027
+    },
+    {
+      "tax_prd_yr": 2011,
+      "tax_prd": 201109,
+      "formtype": 0,
+      "totrevenue": 1240978409,
+      "totfuncexpns": 1101404223,
+      "totnetassetend": 2775326313,
+      "totcntrbgfts": 1040181349,
+      "totprgmrevnue": 90321275,
+      "invstmntinc": 8110080,
+      "ein": 530206027
+    }
+  ],
+  "data_source": "ProPublica Nonprofit Explorer API (cached sample)"
+}
