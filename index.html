@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProPublica to Sankey — every door I tried</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background:#e5e5e5; color:#111;
+           padding:32px 20px; line-height:1.5; }
+    main { width:100%; max-width:680px; margin:0 auto; }
+    h1 { font-size:1.6rem; margin-bottom:.3em; }
+    h2 { font-size:1rem; text-transform:uppercase; letter-spacing:.05em;
+         margin:36px 0 8px; padding-top:16px; border-top:3px #111 solid; }
+    p.intro { margin:.6em 0 1.2em; }
+    a.card { display:block; text-decoration:none; color:inherit;
+             border:2px #111 solid; border-radius:8px; padding:12px 14px;
+             margin:10px 0; background:#fff; }
+    a.card:hover { background:#f2f0ea; }
+    .top { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+    .name { font-weight:bold; }
+    .desc { font-size:.9rem; color:#444; margin-top:2px; }
+    .badge { font-size:.72rem; font-weight:bold; text-transform:uppercase;
+             letter-spacing:.03em; padding:3px 8px; border-radius:5px; white-space:nowrap; }
+    .fail { background:#f5d9d9; color:#8a1f1f; border:1px solid #c98; }
+    .win  { background:#d9f0da; color:#1f6b2a; border:1px solid #8bc; }
+    .muted { background:#e5e2da; color:#555; border:1px solid #bbb; }
+    footer { margin-top:36px; padding-top:16px; border-top:3px #111 solid;
+             font-size:.85rem; color:#555; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>ProPublica to Sankey</h1>
+  <p class="intro">
+    A record of every way I tried to pull the Smithsonian's finances into a webpage.
+    Four doors were locked, two were open, and the difference was never my code: it was
+    whether the server sends the header that lets a browser read the reply. ProPublica
+    doesn't; Wikidata does. Each folder below runs on its own.
+  </p>
+
+  <h2>The experiment</h2>
+
+  <a class="card" href="01_direct_fetch/">
+    <div class="top"><span class="name">01 · Direct fetch</span><span class="badge fail">CORS blocked</span></div>
+    <div class="desc">Call ProPublica straight from the page. No status, the browser kills it first.</div>
+  </a>
+
+  <a class="card" href="02_corsproxy_key/">
+    <div class="top"><span class="name">02 · corsproxy.io (key)</span><span class="badge fail">401 Unauthorized</span></div>
+    <div class="desc">Route through a proxy with an API key. We reached it; it refused the key.</div>
+  </a>
+
+  <a class="card" href="03_allorigins/">
+    <div class="top"><span class="name">03 · allorigins</span><span class="badge fail">522 timeout</span></div>
+    <div class="desc">A keyless proxy. Works sometimes, times out often. Too flaky to build on.</div>
+  </a>
+
+  <a class="card" href="04_jsonp/">
+    <div class="top"><span class="name">04 · JSONP</span><span class="badge fail">403 Forbidden</span></div>
+    <div class="desc">Load the response as a &lt;script&gt; to dodge CORS. Reached the server; it said no.</div>
+  </a>
+
+  <a class="card" href="05_saved_file_WORKS/">
+    <div class="top"><span class="name">05 · Saved file + d3 table</span><span class="badge win">Works</span></div>
+    <div class="desc">Fetch a cached local file (downloaded once via a browser tab). Draws 13 years.</div>
+  </a>
+
+  <a class="card" href="06_wikidata_sparql_WORKS/">
+    <div class="top"><span class="name">06 · Wikidata SPARQL + edits</span><span class="badge win">Works live</span></div>
+    <div class="desc">A live SPARQL query for a VIAF id, plus the record's edit history. Keyless, no proxy.</div>
+  </a>
+
+  <h2>Earlier attempts</h2>
+
+  <a class="card" href="epicfail/">
+    <div class="top"><span class="name">epicfail</span><span class="badge muted">earlier attempt</span></div>
+    <div class="desc">Kept for the record.</div>
+  </a>
+
+  <a class="card" href="epicfail%20copy/">
+    <div class="top"><span class="name">epicfail copy</span><span class="badge muted">earlier attempt</span></div>
+    <div class="desc">Kept for the record.</div>
+  </a>
+
+  <a class="card" href="epicfail%20copy%202/">
+    <div class="top"><span class="name">epicfail copy 2</span><span class="badge muted">earlier attempt</span></div>
+    <div class="desc">Kept for the record.</div>
+  </a>
+
+  <footer>
+    Data: ProPublica Nonprofit Explorer (IRS Form 990) and Wikidata. Smithsonian EIN 53-0206027.
+  </footer>
+</main>
+</body>
+</html>
