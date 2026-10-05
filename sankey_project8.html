@@ -1,0 +1,450 @@
+<!doctype html>
+<!--
+  sankey iceborg
+
+  proxy key: if not 200 then error
+        401 = the key    403 = refused   522 = timed out
+
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>sankey iceberg</title>
+    <style>
+
+:root {
+  --paper: #e3e5dd;
+  --grid:  #211b1422;
+  --ink:      #211b14;  
+  --ink-soft: #6b6559; 
+  --money-in:    #2f5d5a;
+  --money-spent: #6b6559;   
+  --money-kept:  #40407a;
+  --money-lost:  #cc2e22;   
+}
+
+      body { margin: 0; }  
+
+      #Viewport {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background-color: var(--paper);
+        background-image:
+          repeating-linear-gradient(0deg,  var(--grid) 0 1px, transparent 1px 26px),
+          repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 26px);
+        overflow: hidden;
+      }
+
+      #SubjectMatter {
+        display: block;  
+        width: 100%;
+        height: 100%;
+      }
+
+      #TheYearPicker {
+        position: absolute; z-index: 100; top: 14px; left: 18px;
+        font-family: var(--font-mono); font-size: 16px; font-weight: 700;
+        color: var(--ink); background: var(--paper);
+        border: 1.5px solid var(--ink); border-radius: 4px;
+        padding: 4px 6px;
+      }
+
+      /* SANKEYYYY */
+      .OneBlock { fill: var(--ink); }
+
+      .OneFlow {
+        fill: none;                /* a flow is a STROKE not a FILL!! */
+        stroke: var(--ink-soft);
+        stroke-opacity: 0.55;      /* the paper shows through a little */
+      }
+
+      .IsMoneyIn    { stroke: var(--money-in); }
+      .IsMoneySpent { stroke: var(--money-spent); }
+      .IsMoneyLost  { stroke: var(--money-lost); } 
+      .IsMoneyKept  { stroke: var(--money-kept); }
+
+      .OneFlowLabel {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        fill: var(--ink);
+      }
+      .OneAmount { fill: var(--ink-soft); }
+
+    </style>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+
+
+<script>
+
+
+const SmithsonianFilingsUrl = "https://projects.propublica.org/nonprofits/api/v2/organizations/530206027.json";
+const corsProxyKey = "263eb960";
+const proxiedFilingsUrl = "https://corsproxy.io/?key=" + corsProxyKey + "&url=" + encodeURIComponent(SmithsonianFilingsUrl);
+
+
+
+// ---- knocking on the door hee hee--------------------------------------------------
+async function FetchTheSmithsonianFilings() {
+  const response = await fetch(proxiedFilingsUrl);
+  console.log("status:", response.status);   // want 200
+  if (!response.ok) {
+    throw new Error("corsproxy answered " + response.status);   // jumps straight to the catch below
+  }
+  const wholeResponse = await response.json();   // read the answer's text as json
+  return wholeResponse;
+}
+
+//-------------MATHS PLAYGROUND------------------
+
+// DIFFERENCE ?? whatever came in and wasn't spent was kept
+function CalculateMoneyKept(oneFiling) {
+  return oneFiling.totrevenue - oneFiling.totfuncexpns;
+}
+
+function ConvertDollarsIntoReadableText(dollars) {
+  if (dollars >= 1000000000) return "$" + (dollars / 1000000000).toFixed(2) + "B";
+  if (dollars >= 1000000)    return "$" + (dollars / 1000000).toFixed(1) + "M";
+  return "$" + dollars.toLocaleString();   // under a million: the whole number, with commas
+}
+
+// ---- turning one filing into blocks and flows ------------------------------
+// jsonKey = ProPublica's name for the field. label = the name of its block
+const ArrayOfAllRevenueLines = [
+  {jsonKey: "totcntrbgfts",        label: "Contributions and grants"},
+  {jsonKey: "totprgmrevnue",       label: "Program services"},
+  {jsonKey: "invstmntinc",         label: "Investment income"},
+  {jsonKey: "txexmptbndsproceeds", label: "Tax-exempt bond proceeds"},
+  {jsonKey: "royaltsinc",          label: "Royalties"},
+  {jsonKey: "netrntlinc",          label: "Net rental income"},
+  {jsonKey: "netgnls",             label: "Net gain on sales of assets"},
+  {jsonKey: "netincfndrsng",       label: "Fundraising events"},
+  {jsonKey: "netincgaming",        label: "Gaming"},
+  {jsonKey: "netincsales",         label: "Net gift shop sales"},
+  {jsonKey: "miscrevtot11e",       label: "Miscellaneous"},
+];
+
+// EXPERIMENT: the netted lines broken into gross-in and cost-out
+const ArrayOfSplitRevenueLines = [
+  { grossKey:"grsrntsreal",   costKey:"rntlexpnsreal",  grossLabel:"Rent (gross)",              costLabel:"Rent expense" },
+  { grossKey:"grsrntsprsnl",  costKey:"rntlexpnsprsnl", grossLabel:"Rent personal (gross)",     costLabel:"Rent expense personal" },
+  { grossKey:"grsalesecur",   costKey:"cstbasisecur",   grossLabel:"Securities sold (gross)",   costLabel:"Cost basis securities" },
+  { grossKey:"grsalesothr",   costKey:"cstbasisothr",   grossLabel:"Other assets sold (gross)", costLabel:"Cost basis other" },
+  { grossKey:"grsincfndrsng", costKey:"lessdirfndrsng", grossLabel:"Fundraising (gross)",       costLabel:"Fundraising direct costs" },
+  { grossKey:"grsincgaming",  costKey:"lessdirgaming",  grossLabel:"Gaming (gross)",            costLabel:"Gaming direct costs" },
+  { grossKey:"grsalesinvent", costKey:"lesscstofgoods", grossLabel:"Gift shop sold (gross)",    costLabel:"Cost of goods sold" },
+];
+
+// ---- the spending lines the json breaks out (Form 990, Part IX) ------------
+// only a slice of all spending: four lines and the total, nothing in between.
+// whatever these four don't cover becomes one block, "Everything else spent".
+const ArrayOfAllSpendingLines = [
+  { jsonKey: "compnsatncurrofcr", label: "Officer pay" },
+  { jsonKey: "othrsalwages",      label: "Salaries and wages" },
+  { jsonKey: "payrolltx",         label: "Payroll taxes" },
+  { jsonKey: "profndraising",     label: "Professional fundraisers" },
+];
+
+function BuildTheBlocksAndFlows(oneFiling) {
+  // both arrays start empty and fill up as the loop finds money
+  const ArrayOfAllBlocks = [];
+  const ArrayOfAllFlows  = [];
+
+  // i found out that you can ask for a block by name and get back
+  function FindOrMakeBlock(blockName) {
+    let position = ArrayOfAllBlocks.findIndex(oneBlock => oneBlock.name === blockName);
+        
+      // we need a position for amounts that don't add up 
+    if (position === -1) {
+          ArrayOfAllBlocks.push({ name: blockName });
+          position = ArrayOfAllBlocks.length - 1;
+        }
+    return position;
+  }
+
+  // the pool: every source pours in here and comes out as one money
+  const thePool = FindOrMakeBlock("The pool");
+
+  //money in: one loop over the list. the number of tentacles is decided HERE
+  const ArrayOfLossesToMove = [];
+  let everyLineAddedUp = 0;
+
+  ArrayOfAllRevenueLines.forEach(oneLine => {
+    const amount = oneFiling[oneLine.jsonKey];   // square brackets read the field whose NAME is in oneLine.jsonKey
+    everyLineAddedUp = everyLineAddedUp + amount;
+
+// a flow cannot be negative. a net loss is money going out, so we give it a tentacle on the out side
+        if (amount > 0) {
+          ArrayOfAllFlows.push({source: FindOrMakeBlock(oneLine.label), target: thePool, value: amount, fate: "in" });
+        } else if (amount < 0) {
+          ArrayOfLossesToMove.push({label: oneLine.label + " (net loss)", amount: -amount });
+        }
+            // else amount === 0: nothing happens
+  });
+
+  // test!! if the list is complete every line added up (losses INCLUDED) is totrevenue
+  console.log(oneFiling.tax_prd_yr, "lines add up to totrevenue?", everyLineAddedUp === oneFiling.totrevenue);
+
+    // EXPERIMENT: gross flows IN, its cost flows straight back OUT. the difference is the old net.
+  ArrayOfSplitRevenueLines.forEach(oneSplit => {
+    const gross = oneFiling[oneSplit.grossKey];
+    const cost  = oneFiling[oneSplit.costKey];
+    if (gross > 0) ArrayOfAllFlows.push({ source: FindOrMakeBlock(oneSplit.grossLabel), target: thePool, value: gross, fate: "in" });
+    if (cost  > 0) ArrayOfAllFlows.push({ source: thePool, target: FindOrMakeBlock(oneSplit.costLabel), value: cost, fate: "cost" });
+  });
+
+//----------SPENDING----------
+  let spendingTheJsonNames = 0;
+
+  ArrayOfAllSpendingLines.forEach(oneLine => {
+    const amount = oneFiling[oneLine.jsonKey];
+    if (amount > 0) {
+      ArrayOfAllFlows.push({ source: thePool, target: FindOrMakeBlock(oneLine.label), value: amount, fate: "spent" });
+      spendingTheJsonNames = spendingTheJsonNames + amount;
+    }
+  });
+
+//----------END_SPENDING----------
+
+  // NEW the rest of totfuncexpns, which the json doesn't break down
+  const everythingElseSpent = oneFiling.totfuncexpns - spendingTheJsonNames;
+  if (everythingElseSpent > 0) {
+    ArrayOfAllFlows.push({ source: thePool, target: FindOrMakeBlock("Everything else spent"), value: everythingElseSpent, fate: "spent" });
+  }
+  console.log(oneFiling.tax_prd_yr, "spending the json names:", spendingTheJsonNames, " everything else:", everythingElseSpent);
+
+  // the net losses, flowing out of the pool
+  ArrayOfLossesToMove.forEach(oneLoss => {
+    ArrayOfAllFlows.push({ source: thePool, target: FindOrMakeBlock(oneLoss.label), value: oneLoss.amount, fate: "lost" });
+  });
+
+  // test: what pours into the pool has to pour out of it
+  let intoThePool  = 0;
+  let outOfThePool = 0;
+  ArrayOfAllFlows.forEach(oneFlow => {
+    if (oneFlow.target === thePool) intoThePool  = intoThePool  + oneFlow.value;
+    if (oneFlow.source === thePool) outOfThePool = outOfThePool + oneFlow.value;
+  });
+  console.log(oneFiling.tax_prd_yr, "pool in:", intoThePool, " out:", outOfThePool, " same?", intoThePool === outOfThePool);
+
+  // and whatever wasn't spent.
+  // > every year from 2011 to 2023 kept something. a year that spent more than it took in would need a "drawn from reserves" flow INTO the pool instead
+  const moneyKept = CalculateMoneyKept(oneFiling);
+  if (moneyKept > 0) {
+    ArrayOfAllFlows.push({ source: thePool, target: FindOrMakeBlock("Kept"), value: moneyKept, fate: "kept" });
+  }
+
+  // how many tentacles came in this year
+  const tentaclesIn = ArrayOfAllFlows.filter(oneFlow => oneFlow.fate === "in").length;
+  console.log(oneFiling.tax_prd_yr, "tentacles in:", tentaclesIn);
+
+  return {nodes: ArrayOfAllBlocks, links: ArrayOfAllFlows};
+}
+
+//-------------MATHS PLAYGROUND------------------
+
+
+</script>
+</head>
+
+<body>
+  <div id="Viewport">
+        <select id="TheYearPicker"></select>   <!-- empty until the filings arrive -->
+
+    <svg id="SubjectMatter"></svg>
+  </div>
+
+
+  <script>
+
+
+
+
+  //---- SVG selections -------------------------
+  const svgSelection = d3.select("#SubjectMatter");
+
+  // ---- tuning dials ----------------------------------------------------------
+  const blockThickness   = 18;   // how wide each block is (d3-sankey calls it nodeWidth)
+  const gapBetweenBlocks = 24;   // space between blocks stacked in one column (nodePadding)
+  const labelGap         = 8;  
+
+  // ---- scene measurements (refreshed on load + resize) -----------------------
+  const sceneContainerElement = document.getElementById("Viewport");
+  let sceneWidth, sceneHeight, spaceInTheWings, headroom;
+
+  function refreshSceneGeometry() {
+    sceneWidth  = sceneContainerElement.clientWidth;
+    sceneHeight = sceneContainerElement.clientHeight;
+    spaceInTheWings = Math.max(sceneWidth * 0.22, 300);    // empty space left and right. the labels will live here later
+    headroom        = sceneHeight * 0.08;   // empty space above and below
+  }
+
+  // ---- the filing on stage (filled in once the fetch comes back) -------------
+  let ArrayOfAllFilingObjects = [];
+  let yearOnStage = null;
+  let filingOnStage = null;
+
+  // -----Label helpers ---
+  function isAStartingBlock(oneBlock) {return oneBlock.targetLinks.length === 0;}   // nothing arrives
+  function isAnEndingBlock(oneBlock)  {return oneBlock.sourceLinks.length === 0;}   // nothing leaves
+
+  function horizontalLabelPosition(oneBlock) {
+    if (isAStartingBlock(oneBlock)) return oneBlock.x0 - labelGap;   // in the left wing
+    if (isAnEndingBlock(oneBlock))  return oneBlock.x1 + labelGap;   // in the right wing
+    return (oneBlock.x0 + oneBlock.x1) / 2;                          // the pool: centred
+  }
+
+  function verticalLabelPosition(oneBlock) {
+    if (isAStartingBlock(oneBlock) || isAnEndingBlock(oneBlock)) {
+      return (oneBlock.y0 + oneBlock.y1) / 2;   // level with the middle of its block
+    }
+    return oneBlock.y0 - 16;                    // the pool: just above it
+  }
+
+  function labelAnchor(oneBlock) {
+    if (isAStartingBlock(oneBlock)) return "end";     // the text ENDS at x, so it runs left, away from the block
+    if (isAnEndingBlock(oneBlock))  return "start";   // the text STARTS at x and runs right
+    return "middle";
+  }
+
+  // ---- drawing the sankey ----------------------------------------------------
+  function DrawTheSankey(oneFiling) {
+
+    // the sankey generator doesn't draw anything. it's a machine that takes blocks and flows
+    // and works out where everything goes inside the rectangle you give it (the extent)
+    const sankeyGenerator = d3.sankey()
+      .nodeWidth(blockThickness)
+      .nodePadding(gapBetweenBlocks)
+      .nodeSort(null)   // without it d3-sankey is free to reorder a column
+      .extent([[spaceInTheWings, headroom], [sceneWidth - spaceInTheWings, sceneHeight - headroom]]);
+
+    // run the machine. it writes its answers straight INTO the blocks and flows:
+    // every block gets x0 x1 y0 y1 (its rectangle), every flow gets a width,
+    // and each flow's source and target change from numbers into the actual block objects
+    const laidOutSankey = sankeyGenerator(BuildTheBlocksAndFlows(oneFiling));
+    console.log(laidOutSankey);
+
+    // ---- the flows (drawn first, so the blocks sit on top of their ends) ----
+    const everyFlow = svgSelection.append("g")
+      .selectAll("path")
+      .data(laidOutSankey.links)
+      .join("path")
+        .attr("class", "OneFlow")
+        .classed("IsMoneyIn",    oneFlow => oneFlow.fate === "in")     
+        .classed("IsMoneySpent", oneFlow => oneFlow.fate === "spent")
+        .classed("IsMoneyLost",  oneFlow => oneFlow.fate === "lost")
+        .classed("IsMoneyKept",  oneFlow => oneFlow.fate === "kept")
+        .attr("d", d3.sankeyLinkHorizontal())             // the S-curve from one block to the next
+          // for fundraising we need a lie of less than a pixel, so it can be seen at all
+        .attr("stroke-width", oneFlow => Math.max(1, oneFlow.width));
+
+    everyFlow.append("title")
+      .text(oneFlow => oneFlow.source.name + " to " + oneFlow.target.name + ": $" + oneFlow.value.toLocaleString());
+
+    // ---- the blocks ----
+    const everyBlock = svgSelection.append("g")
+      .selectAll("rect")
+      .data(laidOutSankey.nodes)
+      .join("rect")
+        .attr("class", "OneBlock")
+        .attr("x", oneBlock => oneBlock.x0)
+        .attr("y", oneBlock => oneBlock.y0)
+        .attr("width",  oneBlock => oneBlock.x1 - oneBlock.x0)
+        .attr("height", oneBlock => Math.max(1, oneBlock.y1 - oneBlock.y0)); 
+
+    everyBlock.append("title")
+      .text(oneBlock => oneBlock.name + ": $" + oneBlock.value.toLocaleString());
+  
+
+
+    // one label per block. the helpers go in by name, the same way runnerFloorTransform does in kairos
+    const everyLabel = svgSelection.append("g")
+      .selectAll("text")
+      .data(laidOutSankey.nodes)
+      .join("text")
+        .attr("class", "OneFlowLabel")
+        .attr("x", horizontalLabelPosition)
+        .attr("y", verticalLabelPosition)
+        .attr("dy", "0.35em")                  // nudges the text down so it's centred on y instead of sitting on it
+        .attr("text-anchor", labelAnchor);
+
+    // two pieces of text inside one label. a tspan is a span for svg
+    everyLabel.append("tspan")
+      .text(oneBlock => oneBlock.name);
+
+    everyLabel.append("tspan")
+      .attr("class", "OneAmount")
+      .attr("dx", 10)                          // a gap between the name and the amount
+      .text(oneBlock => ConvertDollarsIntoReadableText(oneBlock.value));
+}
+
+
+  // ---- the year picker -------
+  // one <option> per filing, made with the same data join as everything else.
+  // the key function (the year) is how d3 tells the options apart
+  function FillTheYearPicker() {
+    d3.select("#TheYearPicker")
+      .selectAll("option")
+      .data(ArrayOfAllFilingObjects, oneFiling => oneFiling.tax_prd_yr)
+      .join("option")
+        .attr("value", oneFiling => oneFiling.tax_prd_yr)
+        .text(oneFiling => oneFiling.tax_prd_yr);
+  }
+
+
+  //---- callback to draw everything ---------------
+  function DrawEverything() {
+    if (ArrayOfAllFilingObjects.length === 0) return;
+    const filingOnStage = ArrayOfAllFilingObjects.find(oneFiling => oneFiling.tax_prd_yr === yearOnStage);
+    svgSelection.selectAll("*").remove();
+    svgSelection.attr("viewBox", `0 0 ${sceneWidth} ${sceneHeight}`);
+    DrawTheSankey(filingOnStage);
+  }
+
+
+
+
+
+
+
+
+
+
+
+// ---- go --------------------------------------------------------------------
+  document.addEventListener("DOMContentLoaded", async () => {
+    refreshSceneGeometry();   
+    try {
+      const wholeResponse = await FetchTheSmithsonianFilings();
+      console.log(wholeResponse);
+
+      ArrayOfAllFilingObjects = wholeResponse.filings_with_data;
+
+      yearOnStage = ArrayOfAllFilingObjects[0].tax_prd_yr; // the newest year comes first
+      FillTheYearPicker();
+      DrawEverything();
+
+    } catch (whatWentWrong) {
+      console.log("the fetch failed:", whatWentWrong.message);
+    }
+  });
+
+  // RESIZER
+  window.addEventListener("resize", () => {
+    refreshSceneGeometry();
+    DrawEverything();
+  });
+
+    // ---- listening for a new year ----------------------------------------------
+  function changeYearAction(changeEvent) {
+    // UNSTRINGIFY the picker gives TEXT and the json has a NUMBER
+    yearOnStage = Number(changeEvent.target.value);
+    DrawEverything();
+  }
+
+  d3.select("#TheYearPicker").on("change", changeYearAction);
+
+  </script>
+</body>
+</html>

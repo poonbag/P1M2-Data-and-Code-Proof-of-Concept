@@ -1,0 +1,258 @@
+<!doctype html>
+<!--
+  sankey iceborg
+
+  proxy key: if not 200 then error
+        401 = the key    403 = refused   522 = timed out
+
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>sankey iceberg</title>
+    <style>
+
+:root {
+  --paper: #e3e5dd;
+  --grid:  #211b1422;
+  --ink:      #211b14;  
+  --ink-soft: #6b6559; 
+  --money-in:    #2f5d5a;
+  --money-spent: #6b6559;   
+  --money-kept:  #40407a;   
+}
+
+      body { margin: 0; }  
+
+      #Viewport {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background-color: var(--paper);
+        background-image:
+          repeating-linear-gradient(0deg,  var(--grid) 0 1px, transparent 1px 26px),
+          repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 26px);
+        overflow: hidden;
+      }
+
+      #SubjectMatter {
+        display: block;  
+        width: 100%;
+        height: 100%;
+      }
+
+      /* SANKEYYYY */
+      .OneBlock { fill: var(--ink); }
+
+      .OneFlow {
+        fill: none;                /* a flow is a STROKE not a FILL!! */
+        stroke: var(--ink-soft);
+        stroke-opacity: 0.55;      /* the paper shows through a little */
+      }
+      .IsMoneyIn    { stroke: var(--money-in); }
+      .IsMoneySpent { stroke: var(--money-spent); }
+      .IsMoneyKept  { stroke: var(--money-kept); }
+
+    </style>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+
+
+<script>
+
+
+const SmithsonianFilingsUrl = "https://projects.propublica.org/nonprofits/api/v2/organizations/530206027.json";
+const corsProxyKey = "263eb960";
+const proxiedFilingsUrl = "https://corsproxy.io/?key=" + corsProxyKey + "&url=" + encodeURIComponent(SmithsonianFilingsUrl);
+
+
+
+// ---- knocking on the door hee hee--------------------------------------------------
+async function FetchTheSmithsonianFilings() {
+  const response = await fetch(proxiedFilingsUrl);
+  console.log("status:", response.status);   // want 200
+  if (!response.ok) {
+    throw new Error("corsproxy answered " + response.status);   // jumps straight to the catch below
+  }
+  const wholeResponse = await response.json();   // read the answer's text as json
+  return wholeResponse;
+}
+
+//-------------MATHS PLAYGROUND------------------
+
+// DIFFERENCE ?? whatever came in and wasn't spent was kept
+function CalculateMoneyKept(oneFiling) {
+  return oneFiling.totrevenue - oneFiling.totfuncexpns;
+}
+
+// ---- turning one filing into blocks and flows ------------------------------
+
+
+function BuildTheBlocksAndFlows(oneFiling) {
+  const moneySpent = oneFiling.totfuncexpns;          
+  const moneyKept  = CalculateMoneyKept(oneFiling); 
+
+  const everythingElseIn = oneFiling.totrevenue - (oneFiling.totcntrbgfts + oneFiling.totprgmrevnue + oneFiling.invstmntinc);
+
+
+  const ArrayOfAllBlocks = [
+    { name: "Contributions and grants" },   // block 0   
+    { name: "Program services" },           // block 1   
+    { name: "Investment income" },          // block 2   
+    { name: "Everything else in" },         // block 3   
+    { name: "The pool" },                   // block 4   
+    { name: "Spent" },                      // block 5
+    { name: "Kept" },                       // block 6
+  ];
+
+  // a flow has ONE value, so both ends come out the same height.
+  // that's the rule of the whole diagram: what goes into a block comes out of it.
+  const ArrayOfAllFlows = [
+    { source: 0, target: 4, value: oneFiling.totcntrbgfts,  fate: "in" },
+    { source: 1, target: 4, value: oneFiling.totprgmrevnue, fate: "in" },
+    { source: 2, target: 4, value: oneFiling.invstmntinc,   fate: "in" }, 
+    { source: 3, target: 4, value: everythingElseIn,        fate: "in" },  
+    { source: 4, target: 5, value: moneySpent, fate: "spent" },  
+    { source: 4, target: 6, value: moneyKept,  fate: "kept" },   
+  ];
+
+// WHAT GOES IN MUST COME OUT??
+  const intoThePool  = oneFiling.totcntrbgfts + oneFiling.totprgmrevnue + oneFiling.invstmntinc + everythingElseIn;
+  const outOfThePool = moneySpent + moneyKept;
+  console.log("into the pool:", intoThePool, " out of the pool:", outOfThePool, " same?", intoThePool === outOfThePool);
+
+  return { nodes: ArrayOfAllBlocks, links: ArrayOfAllFlows };
+}
+
+//-------------MATHS PLAYGROUND------------------
+
+
+</script>
+</head>
+
+<body>
+  <div id="Viewport">
+    <svg id="SubjectMatter"></svg>
+  </div>
+
+
+  <script>
+
+
+
+
+  //---- SVG selections -------------------------
+  const svgSelection = d3.select("#SubjectMatter");
+
+  // ---- tuning dials ----------------------------------------------------------
+  const blockThickness   = 18;   // how wide each block is (d3-sankey calls it nodeWidth)
+  const gapBetweenBlocks = 24;   // space between blocks stacked in one column (nodePadding)
+
+  // ---- scene measurements (refreshed on load + resize) -----------------------
+  const sceneContainerElement = document.getElementById("Viewport");
+  let sceneWidth, sceneHeight, spaceInTheWings, headroom;
+
+  function refreshSceneGeometry() {
+    sceneWidth  = sceneContainerElement.clientWidth;
+    sceneHeight = sceneContainerElement.clientHeight;
+    spaceInTheWings = sceneWidth * 0.22;    // empty space left and right. the labels will live here later
+    headroom        = sceneHeight * 0.08;   // empty space above and below
+  }
+
+  // ---- the filing on stage (filled in once the fetch comes back) -------------
+  let filingOnStage = null;
+
+  // ---- drawing the sankey ----------------------------------------------------
+  function DrawTheSankey(oneFiling) {
+
+    // the sankey generator doesn't draw anything. it's a machine that takes blocks and flows
+    // and works out where everything goes inside the rectangle you give it (the extent)
+    const sankeyGenerator = d3.sankey()
+      .nodeWidth(blockThickness)
+      .nodePadding(gapBetweenBlocks)
+      .extent([[spaceInTheWings, headroom], [sceneWidth - spaceInTheWings, sceneHeight - headroom]]);
+
+    // run the machine. it writes its answers straight INTO the blocks and flows:
+    // every block gets x0 x1 y0 y1 (its rectangle), every flow gets a width,
+    // and each flow's source and target change from numbers into the actual block objects
+    const laidOutSankey = sankeyGenerator(BuildTheBlocksAndFlows(oneFiling));
+    console.log(laidOutSankey);
+
+    // ---- the flows (drawn first, so the blocks sit on top of their ends) ----
+    const everyFlow = svgSelection.append("g")
+      .selectAll("path")
+      .data(laidOutSankey.links)
+      .join("path")
+        .attr("class", "OneFlow")
+        .classed("IsMoneyIn",    oneFlow => oneFlow.fate === "in")     
+        .classed("IsMoneySpent", oneFlow => oneFlow.fate === "spent")
+        .classed("IsMoneyKept",  oneFlow => oneFlow.fate === "kept")
+        .attr("d", d3.sankeyLinkHorizontal())             // the S-curve from one block to the next
+        .attr("stroke-width", oneFlow => oneFlow.width);  // fatness = value
+
+
+    everyFlow.append("title")
+      .text(oneFlow => oneFlow.source.name + " to " + oneFlow.target.name + ": $" + oneFlow.value.toLocaleString());
+
+    // ---- the blocks ----
+    const everyBlock = svgSelection.append("g")
+      .selectAll("rect")
+      .data(laidOutSankey.nodes)
+      .join("rect")
+        .attr("class", "OneBlock")
+        .attr("x", oneBlock => oneBlock.x0)
+        .attr("y", oneBlock => oneBlock.y0)
+        .attr("width",  oneBlock => oneBlock.x1 - oneBlock.x0)
+        .attr("height", oneBlock => oneBlock.y1 - oneBlock.y0);
+
+    everyBlock.append("title")
+      .text(oneBlock => oneBlock.name + ": $" + oneBlock.value.toLocaleString());
+  }
+
+  //---- callback to draw everything ---------------
+  function DrawEverything() {
+    if (filingOnStage === null) return;    // nothing to draw until the filings arrive
+    svgSelection.selectAll("*").remove();  // wipe the stage, or every redraw piles on top of the last
+    svgSelection.attr("viewBox", `0 0 ${sceneWidth} ${sceneHeight}`);
+    DrawTheSankey(filingOnStage);
+  }
+
+
+
+
+
+
+
+
+
+
+
+// ---- go --------------------------------------------------------------------
+  document.addEventListener("DOMContentLoaded", async () => {
+    refreshSceneGeometry();   
+    try {
+      const wholeResponse = await FetchTheSmithsonianFilings();
+      console.log(wholeResponse);
+
+      const ArrayOfAllFilingObjects = wholeResponse.filings_with_data;
+        ArrayOfAllFilingObjects.forEach(oneFiling => {
+          console.log(oneFiling.tax_prd_yr, oneFiling.totrevenue, oneFiling.totfuncexpns);
+        });
+
+      filingOnStage = ArrayOfAllFilingObjects[0];   // the newest year comes first
+      DrawEverything();  
+
+    } catch (whatWentWrong) {
+      console.log("the fetch failed:", whatWentWrong.message);
+    }
+  });
+
+  // RESIZER
+  window.addEventListener("resize", () => {
+    refreshSceneGeometry();
+    DrawEverything();
+  });
+
+  </script>
+</body>
+</html>
